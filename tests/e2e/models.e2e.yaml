@@ -1,0 +1,7 @@
+models:
+  stub:
+    base_url: http://stub-models:9000/v1
+    model: stub
+roles:
+  embedding: stub
+  ocr: stub

@@ -1,0 +1,14 @@
+# The profile questions Uriel asks, one at a time, when someone sets up their USER.md or SOUL.md.
+# replace: true for answers that change rather than add up. Edit freely: a restart picks up the change.
+user:
+  - { section: Name, ask: "What would you like me to call you?", replace: true }
+  - { section: Birthday, ask: "When's your birthday?", replace: true }
+  - { section: Music, ask: "What music do you enjoy?" }
+  - { section: Hobbies, ask: "What do you like doing in your free time?" }
+  - { section: Food, ask: "Any favourite foods, or things you don't eat?" }
+soul:
+  - { section: Tone, ask: "How should I sound: warm and cheerful, calm, or straight to the point?", replace: true }
+  - { section: Length, ask: "Short answers, or more detail?", replace: true }
+  - { section: Language, ask: "Which language should I answer in?", replace: true }
+  - { section: Humour, ask: "Is a bit of humour welcome?", replace: true }
+  - { section: Avoid, ask: "Anything I should never do when talking to you?" }

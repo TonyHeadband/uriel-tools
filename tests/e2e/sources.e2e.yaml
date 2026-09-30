@@ -1,0 +1,2 @@
+ocr_window: { start: "03:00", end: "03:00", tz: UTC }  # never open: OCR only runs through ocr_now
+share_poll_minutes: 1

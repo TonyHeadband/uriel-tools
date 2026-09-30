@@ -1,0 +1,33 @@
+# docker compose -f deploy/compose.yaml -f deploy/compose.e2e.yaml up -d --build --wait
+x-e2e-env: &e2e-env
+  URIEL_MODELS_FILE: /app/tests/e2e/models.e2e.yaml
+  URIEL_SOURCES_FILE: /app/tests/e2e/sources.e2e.yaml
+  URIEL_NC_URL: http://fake-webdav:8080
+  URIEL_NC_PUBLIC_URL: https://cloud.example
+  URIEL_NC_USER: uriel
+  URIEL_NC_APP_PASSWORD: uriel-pw
+  URIEL_EVENTS_SETTLE_S: "1"
+
+x-e2e: &e2e
+  volumes: ["../config:/app/config:ro", "../tests:/app/tests:ro", "../tests/e2e:/app/shared:ro"]
+
+services:
+  mcp: { <<: *e2e, environment: *e2e-env }
+  events: { <<: *e2e, environment: *e2e-env }
+  indexer: { <<: *e2e, environment: *e2e-env, depends_on: { fake-webdav: { condition: service_started }, stub-models: { condition: service_started } } }
+
+  fake-webdav:
+    image: uriel-tools:dev
+    volumes: ["../tests:/app/tests:ro"]
+    environment:
+      FAKE_NC_PASSWORDS: "uriel:uriel-pw"
+      # Alice shares /Documents with uriel read-only (hers only); Bob shares /Famiglia with uriel-family
+      # and allows creating files, so Uriel can save edit_ copies there.
+      FAKE_NC_SHARES: '[{"id": "1", "share_type": 0, "share_with": "uriel", "uid_owner": "alice", "displayname_owner": "Alice", "path": "/Documents", "permissions": 1}, {"id": "2", "share_type": 1, "share_with": "uriel-family", "uid_owner": "bob", "displayname_owner": "Bob", "path": "/Famiglia", "permissions": 5}]'
+    command: ["uvicorn", "--factory", "tests.fakes.webdav:create_app_from_env", "--host", "0.0.0.0", "--port", "8080"]
+    ports: ["8080:8080"]
+
+  stub-models:
+    image: uriel-tools:dev
+    volumes: ["../tests:/app/tests:ro"]
+    command: ["uvicorn", "tests.e2e.stub_models:app", "--host", "0.0.0.0", "--port", "9000"]

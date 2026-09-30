@@ -1,0 +1,66 @@
+name: uriel-tools
+
+# Local stack. Real use: put the uriel account's URIEL_NC_APP_PASSWORD in ../.env and share folders with
+# `uriel` in Nextcloud; config/ is mounted, so edits need only a restart. See README.
+x-tools-env: &tools-env
+  URIEL_TOOLS_DATABASE_URL: postgresql://uriel_tools:uriel_tools@db:5432/uriel_tools
+  # models.yaml is shared by the whole deployment and lives in uriel-agent's config/ (a sibling checkout).
+  URIEL_MODELS_FILE: ${URIEL_MODELS_FILE:-/app/shared/models.dev.yaml}
+  URIEL_SOURCES_FILE: ${URIEL_SOURCES_FILE:-/app/config/sources.yaml}
+  URIEL_NC_URL: ${URIEL_NC_URL:-https://cloud.example.com}
+  URIEL_NC_PUBLIC_URL: ${URIEL_NC_PUBLIC_URL:-https://cloud.example.com}
+
+x-tools: &tools
+  build: { context: .., dockerfile: deploy/Dockerfile }
+  image: uriel-tools:dev
+  env_file: [{ path: ../.env, required: false }]
+  volumes: ["../config:/app/config:ro", "${URIEL_SHARED_CONFIG:-../../uriel-agent/config}:/app/shared:ro"]
+  depends_on: { db: { condition: service_healthy } }
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment: { POSTGRES_USER: uriel_tools, POSTGRES_PASSWORD: uriel_tools, POSTGRES_DB: uriel_tools }
+    ports: ["55443:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uriel_tools"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mcp:
+    <<: *tools
+    restart: unless-stopped
+    ports: ["8001:8001"]
+    environment:
+      <<: *tools-env
+      URIEL_MCP_API_KEYS: dev-mcp-key
+      URIEL_MCP_TOOLS_FILE: /app/config/tools.yaml
+      URIEL_MCP_QUESTIONNAIRE_FILE: /app/config/questionnaire.yaml
+      # draft_issue / file_issue: the uriel bot's URIEL_FORGEJO_TOKEN comes from ../.env; unset disables them.
+      URIEL_FORGEJO_URL: ${URIEL_FORGEJO_URL:-https://git.example.com}
+      URIEL_FORGEJO_REPO: ${URIEL_FORGEJO_REPO:-anthony-headband/uriel-agent}
+      URIEL_SEARXNG_URL: ${URIEL_SEARXNG_URL:-https://searxng.example.com}
+      # Off locally: a dev database must not create calendars on the real Nextcloud. The cluster leaves it
+      # unset, which means on whenever Nextcloud credentials are configured.
+      URIEL_MIRROR_ENABLED: ${URIEL_MIRROR_ENABLED:-false}
+
+  events:
+    <<: *tools
+    restart: unless-stopped
+    command: ["python", "-m", "uriel_tools.events"]
+    ports: ["8002:8002"]
+    environment:
+      <<: *tools-env
+      URIEL_EVENTS_KEY_NEXTCLOUD: dev-events-key
+
+  indexer:
+    <<: *tools
+    restart: unless-stopped
+    command: ["python", "-m", "uriel_tools.indexer"]
+    environment: *tools-env
+    healthcheck:
+      test: ["CMD-SHELL", "test -n \"$$(find /tmp/uriel-indexer-heartbeat -mmin -2)\""]
+      interval: 10s
+      timeout: 3s
+      retries: 12

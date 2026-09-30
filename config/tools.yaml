@@ -1,0 +1,29 @@
+tools:
+  homelab_status: { groups: [admins], category: homelab }
+  search_documents: { groups: [family], category: documents, unattended: true }
+  door_camera_last_event: { groups: [family], category: camera }
+  ocr_now: { groups: [family], category: documents }
+  inspect_document: { groups: [family], category: documents }
+  fill_form: { groups: [family], category: documents }
+  edit_text: { groups: [family], category: documents }
+  sign_document: { groups: [family], category: documents }
+  confirm_edit: { groups: [family], category: documents }
+  remember: { groups: [family], category: memory }
+  forget: { groups: [family], category: memory }
+  show_memory: { groups: [family], category: memory, unattended: true }
+  next_question: { groups: [family], category: memory }
+  answer_question: { groups: [family], category: memory }
+  set_style: { groups: [family], category: memory }
+  memory_context: { groups: [family], category: memory, hidden: true }
+  draft_issue: { groups: [family], category: reporting }
+  file_issue: { groups: [family], category: reporting }
+  draft_schedule: { groups: [family], category: schedules }
+  create_schedule: { groups: [family], category: schedules }
+  list_schedules: { groups: [family], category: schedules, unattended: true }
+  list_runs: { groups: [family], category: schedules }
+  cancel_schedule: { groups: [family], category: schedules }
+  set_timezone: { groups: [family], category: schedules }
+  # The gateway's runner only: it sends uriel-internal on its own calls and strips it from every person.
+  claim_due_runs: { groups: [uriel-internal], category: schedules, hidden: true }
+  finish_run: { groups: [uriel-internal], category: schedules, hidden: true }
+  web_search: { groups: [family], category: web, unattended: true }

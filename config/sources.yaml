@@ -1,0 +1,6 @@
+# Folders are opted in from Nextcloud, not here: share a folder with the user `uriel` (searchable by you) or
+# with a group `uriel-<group>` (searchable by the Authelia group <group>). See docs/guide.md.
+ocr_window: { start: "01:00", end: "06:00", tz: Europe/Rome }
+reconcile_at: "00:30"
+share_poll_minutes: 5
+share_group_prefix: uriel-
