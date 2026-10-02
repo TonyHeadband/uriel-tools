@@ -119,7 +119,7 @@ def test_text_boxes_named_for_a_signature_are_signed_not_typed_into():
     assert [s["name"] for s in info["signature_fields"]] == ["1-11 Signature", "2-23 Signature"]
     assert [f["name"] for f in info["fields"]] == ["1-12 Date of signature"]
     typed = pdf.fill(data, {"1-11 Signature": "Mario Rossi"})
-    assert typed.items == [] and "use sign_document" in typed.warnings[0]
+    assert typed.items == [] and "use preview_signature" in typed.warnings[0]
     with pytest.raises(NotEditable, match="several signature boxes.*which one is theirs"):
         pdf.signature_spot(data, None)
     signed = pdf.sign(data, filegen.signature_png(), "2-23")

@@ -1,6 +1,6 @@
 [project]
 name = "uriel-tools"
-version = "0.8.0"
+version = "0.11.0"
 description = "MCP tool server for the Uriel family assistant, gated by caller groups"
 readme = "README.md"
 authors = [

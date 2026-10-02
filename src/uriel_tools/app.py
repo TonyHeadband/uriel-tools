@@ -9,6 +9,7 @@ from uriel_tools.gating import ToolPolicy
 from uriel_tools.issues import Forgejo
 from uriel_tools.memory.questionnaire import Questionnaire
 from uriel_tools.middleware import ApiKeyMiddleware, GroupGate
+from uriel_tools.schedules.caldav import CalDav
 from uriel_tools.schedules.rules import DEFAULT_TZ
 from uriel_tools.search import WebSearch
 from uriel_tools.tools import Rag, register_tools
@@ -40,10 +41,13 @@ def build_mcp(
     web: WebSearch | None = None,
     default_tz: str = DEFAULT_TZ,
     background: Sequence[Background] = (),
+    calendars: CalDav | None = None,
 ) -> FastMCP:
     lifespan = {"lifespan": _running(background)} if background else {}
     mcp = FastMCP("uriel-tools", middleware=[GroupGate(policy)], **lifespan)
-    register_tools(mcp, rag, issues, questionnaire, policy=policy, web=web, default_tz=default_tz)
+    register_tools(
+        mcp, rag, issues, questionnaire, policy=policy, web=web, default_tz=default_tz, calendars=calendars
+    )
     return mcp
 
 
@@ -57,6 +61,16 @@ def build_app(
     web: WebSearch | None = None,
     default_tz: str = DEFAULT_TZ,
     background: Sequence[Background] = (),
+    calendars: CalDav | None = None,
 ):
-    mcp = build_mcp(policy, rag, issues, questionnaire, web=web, default_tz=default_tz, background=background)
+    mcp = build_mcp(
+        policy,
+        rag,
+        issues,
+        questionnaire,
+        web=web,
+        default_tz=default_tz,
+        background=background,
+        calendars=calendars,
+    )
     return mcp.http_app(middleware=[ASGIMiddleware(ApiKeyMiddleware, keys=api_keys)])

@@ -1,8 +1,13 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 from fastmcp import Context
 from pydantic import BaseModel, Field
+
+# What a call looks like from outside, for the desktop companion's character: lookup reads, change writes now,
+# draft prepares a change that waits for a yes, confirm applies one, ask puts a question to the person.
+CompanionAction = Literal["lookup", "change", "draft", "confirm", "ask"]
 
 
 class ToolRule(BaseModel):
@@ -11,6 +16,7 @@ class ToolRule(BaseModel):
     category: str = Field(min_length=1)
     hidden: bool = False  # for the gateway itself, never offered to the model (since 0.8.0)
     unattended: bool = False  # safe for a scheduled run, with nobody there to confirm anything (since 0.8.0)
+    companion_action: CompanionAction | None = None  # absent only on hidden tools (since 0.10.0)
 
 
 class ToolPolicy(BaseModel):

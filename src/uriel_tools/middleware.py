@@ -48,7 +48,12 @@ class GroupGate(Middleware):
 
     def _uriel_meta(self, name: str) -> dict:
         rule = self.policy.tools[name]
-        return {"category": rule.category, "hidden": rule.hidden, "unattended": rule.unattended}
+        return {
+            "category": rule.category,
+            "hidden": rule.hidden,
+            "unattended": rule.unattended,
+            "companion_action": rule.companion_action,
+        }
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         caller = caller_from(context.fastmcp_context)

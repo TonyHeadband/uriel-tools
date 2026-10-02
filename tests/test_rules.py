@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 
@@ -61,7 +61,8 @@ def test_occurrences_are_utc_instants():
 def test_a_one_off_runs_once_and_never_in_the_past():
     rule = rules.build("once", "09:00", TORONTO, NOW, on="2026-03-10")
     assert rules.upcoming(rule.rrule, rule.dtstart, rule.tz, NOW, 5) == [utc(2026, 3, 10, 13, 0)]
-    with pytest.raises(RuleError, match="already passed"):
+    # The model may not know today's date, so the refusal tells it.
+    with pytest.raises(RuleError, match=r"already passed \(it is now Fri 6 Mar 2026, 10:00 Toronto time\)"):
         rules.build("once", "09:00", TORONTO, NOW, on="2026-03-06")  # an hour ago
     with pytest.raises(RuleError, match="needs a date"):
         rules.build("once", "09:00", TORONTO, NOW)
@@ -132,3 +133,12 @@ def test_times_for_the_wire_and_for_people():
     at = utc(2026, 9, 30, 13, 0)
     assert rules.iso(at) == "2026-09-30T13:00:00Z"
     assert rules.local(at, TORONTO) == "Wed 30 Sep 2026, 9:00"
+
+
+def test_clock_and_date_fields_are_parsed_or_refused():
+    assert rules.parse_clock(" 9:05 ") == time(9, 5)
+    assert rules.parse_date("2026-10-03") == date(2026, 10, 3)
+    with pytest.raises(RuleError, match="HH:MM"):
+        rules.parse_clock("9am")
+    with pytest.raises(RuleError, match="YYYY-MM-DD"):
+        rules.parse_date("3 Oct")

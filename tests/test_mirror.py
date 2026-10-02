@@ -121,6 +121,19 @@ async def test_push_creates_and_deletes_the_event(svc, mirror, fake, pool):
     assert fake.calendars[DONE].items == {}  # a cancellation in the chat logs no done-task
 
 
+async def test_a_series_started_years_ago_still_carries_this_years_transitions(svc, mirror, fake, pool):
+    made = await make(svc, TONY)
+    async with pool.connection() as conn:
+        await conn.execute(
+            "UPDATE schedules SET dtstart = dtstart - interval '15 years' WHERE id = %s",
+            (made["schedule_id"],),
+        )
+    await mirror.push_once()
+    (event,) = fake.calendars[EVENTS].items.values()
+    assert "DTSTART;TZID=America/Toronto:2011" in event.replace("\r\n ", "")
+    assert "20260308T020000" in event and "20261101T020000" in event
+
+
 async def test_a_finished_run_becomes_a_done_task(svc, mirror, fake, clock, pool):
     made = await make(svc, TONY)
     uid = await uid_of(pool, made["schedule_id"])

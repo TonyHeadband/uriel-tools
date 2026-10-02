@@ -2,10 +2,12 @@
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from psycopg_pool import AsyncConnectionPool
 
+from uriel_tools.drafts import Drafts
 from uriel_tools.edit import office, pdf, records
 from uriel_tools.edit.core import NotEditable, Result
 from uriel_tools.edit.names import draft_path
@@ -29,9 +31,17 @@ class Denied(Exception):
     """Refused, with a message the model can relay as is."""
 
 
+@dataclass(frozen=True)
+class SignaturePreview:
+    path: str
+    where: str | None
+
+
 class Editor:
     def __init__(self, pool: AsyncConnectionPool, dav: Callable[[], WebDav], public_url: str = ""):
         self.pool, self.dav, self.public_url = pool, dav, public_url.rstrip("/")
+        # place_signature acts only on a stored preview, so no signature goes anywhere the person didn't see.
+        self.signatures: Drafts[SignaturePreview] = Drafts()
 
     # ---- access
 
@@ -166,29 +176,51 @@ class Editor:
             caller, path, "edit_text", lambda data, mime: _text(data, mime, changes, notes)
         )
 
-    async def sign(self, caller: Caller, path: str, where: str | None, confirmed: bool) -> dict:
+    async def preview_signature(self, caller: Caller, path: str, where: str | None) -> dict:
         path = normalise(path)
-        folder = await self._folder(caller, path, write=True)
+        await self._folder(caller, path, write=True)
         dav = self.dav()
         try:
-            data, mime = await self._load(dav, path)
-            if mime != PDF:
-                raise Denied("signatures can be placed on PDFs only")
-            image = await self._signature(dav, caller)
-            if not confirmed:
-                spot = await asyncio.to_thread(pdf.describe_signature, data, where)
-                return {
-                    "confirmed": False,
-                    "would_place": spot,
-                    "next": "Ask the person to confirm in the chat; only after they say yes, call again with "
-                    "confirmed=true. Nothing has been saved.",
-                }
-            result = await self._run(pdf.sign, data, image, where)
-            return await self._save(dav, folder, path, mime, result, "sign_document", caller)
+            data, _ = await self._signable(dav, caller, path)
+            spot = await asyncio.to_thread(pdf.describe_signature, data, where)
         except NotEditable as e:
             raise Denied(str(e)) from e
         finally:
             await dav.aclose()
+        return {
+            "draft_id": self.signatures.add(caller, SignaturePreview(path, where)),
+            "would_place": spot,
+            "next": "Nothing has been saved. Show the person where the signature would go and call "
+            "place_signature with this draft_id only after they say yes. If they want it elsewhere, "
+            "preview again.",
+        }
+
+    async def place_signature(self, caller: Caller, draft_id: str) -> dict:
+        stored = self.signatures.get(caller, draft_id)
+        if stored is None:
+            raise Denied("no such preview (it may have expired): call preview_signature again and show it")
+        if stored.result is None:
+            stored.result = await self._sign(caller, stored.draft)
+        return stored.result
+
+    async def _sign(self, caller: Caller, preview: SignaturePreview) -> dict:
+        folder = await self._folder(caller, preview.path, write=True)
+        dav = self.dav()
+        try:
+            data, image = await self._signable(dav, caller, preview.path)
+            result = await self._run(pdf.sign, data, image, preview.where)
+            return await self._save(dav, folder, preview.path, PDF, result, "place_signature", caller)
+        except NotEditable as e:
+            raise Denied(str(e)) from e
+        finally:
+            await dav.aclose()
+
+    async def _signable(self, dav: WebDav, caller: Caller, path: str) -> tuple[bytes, bytes]:
+        """The PDF and the caller's own signature image; refused before the preview, not after the yes."""
+        data, mime = await self._load(dav, path)
+        if mime != PDF:
+            raise Denied("signatures can be placed on PDFs only")
+        return data, await self._signature(dav, caller)
 
     async def confirm(self, caller: Caller, path: str) -> dict:
         path = normalise(path)

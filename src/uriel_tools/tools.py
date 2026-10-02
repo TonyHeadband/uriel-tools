@@ -9,6 +9,8 @@ from fastmcp.exceptions import ToolError
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel
 
+from uriel_tools.calendars.service import CalendarDraft, Calendars
+from uriel_tools.calendars.service import Refused as CalendarRefused
 from uriel_tools.db import apply_migrations
 from uriel_tools.drafts import Drafts
 from uriel_tools.edit.service import Denied, Editor
@@ -19,7 +21,9 @@ from uriel_tools.memory.service import Memories, Refused
 from uriel_tools.rag import jobs, store
 from uriel_tools.rag.search import search
 from uriel_tools.rag.sources import normalise
+from uriel_tools.rag.webdav import WebDavError
 from uriel_tools.schedules import rules
+from uriel_tools.schedules.caldav import CalDav
 from uriel_tools.schedules.rules import Frequency, Weekday
 from uriel_tools.schedules.service import Refused as ScheduleRefused
 from uriel_tools.schedules.service import ScheduleDraft, Schedules
@@ -102,6 +106,18 @@ async def _schedule_call(coro):
         raise ToolError("scheduling is unavailable right now") from e
 
 
+async def _calendar_call(coro):
+    try:
+        return await coro
+    except (CalendarRefused, rules.RuleError) as e:  # RuleError: e.g. a saved timezone that no longer exists
+        raise ToolError(str(e)) from e
+    except OverflowError as e:
+        raise ToolError("that date is out of range") from e
+    except (WebDavError, psycopg.Error) as e:
+        log.warning("calendar call failed: %s", e)
+        raise ToolError("calendar is unavailable right now") from e
+
+
 def register_tools(
     mcp: FastMCP,
     rag: Rag | None = None,
@@ -111,6 +127,7 @@ def register_tools(
     policy: ToolPolicy | None = None,
     web: WebSearch | None = None,
     default_tz: str = rules.DEFAULT_TZ,
+    calendars: CalDav | None = None,
 ) -> None:
     # Stubs with realistic shapes; the real integrations come in later specs.
     @mcp.tool
@@ -208,20 +225,23 @@ def register_tools(
         return await _edit_call(editor.edit_text(caller_from(ctx), path, pairs, anchored))
 
     @mcp.tool
-    async def sign_document(
-        path: str, ctx: Context, where: str | None = None, confirmed: bool = False
-    ) -> dict:
-        """Place the person's own handwritten-signature image on a PDF: a visual signature, never anyone
-        else's, and not a digital signature. `where` is the signature box to use (a name from
-        inspect_document's signature_fields) or the printed text to sign beside (e.g. "Firma del genitore").
-        When a form has boxes for several people, ask the person which is theirs: never guess. Default: the
-        only signature box, else the last "Signature"/"Firma".
-
-        First call with confirmed=false: it only says where the signature would go and saves nothing. Ask the
-        person to confirm in the chat, and call again with confirmed=true only after they say yes. The result
-        is a new edit_ file next to the original: give the url and ask them to review it."""
+    async def preview_signature(path: str, ctx: Context, where: str | None = None) -> dict:
+        """Say where the person's own handwritten-signature image would go on a PDF: a visual signature,
+        never anyone else's, and not a digital signature. Saves nothing and returns a draft_id. `where` is
+        the signature box to use (a name from inspect_document's signature_fields) or the printed text to
+        sign beside (e.g. "Firma del genitore"). When a form has boxes for several people, ask the person
+        which is theirs: never guess. Default: the only signature box, else the last "Signature"/"Firma".
+        Show them where it would go and call place_signature only after their yes."""
         editor = await _editor(rag)
-        return await _edit_call(editor.sign(caller_from(ctx), path, where, confirmed))
+        return await _edit_call(editor.preview_signature(caller_from(ctx), path, where))
+
+    @mcp.tool
+    async def place_signature(draft_id: str, ctx: Context) -> dict:
+        """Place exactly the signature previewed with preview_signature. Call it only after the person has
+        seen where it goes and said yes. The result is a new edit_ file next to the original: give the url
+        and ask them to review it. Never say a document was signed unless this returned `saved`."""
+        editor = await _editor(rag)
+        return await _edit_call(editor.place_signature(caller_from(ctx), draft_id))
 
     @mcp.tool
     async def confirm_edit(path: str, ctx: Context) -> dict:
@@ -304,9 +324,12 @@ def register_tools(
 
     @mcp.tool
     async def memory_context(ctx: Context) -> dict:
-        """The caller's USER.md and SOUL.md, for the gateway's system prompt: not for the model."""
+        """The caller's USER.md and SOUL.md, their timezone and the time there now, for the gateway's system
+        prompt: not for the model."""
+        caller = caller_from(ctx)
         m = await memories()
-        return await _memory_call(m.context(caller_from(ctx)))
+        s = await schedules()
+        return await _memory_call(m.context(caller)) | await _schedule_call(s.local_now(caller))
 
     drafts: Drafts[Draft] = Drafts()
 
@@ -384,8 +407,8 @@ def register_tools(
         tools: list[str] | None = None,
     ) -> dict:
         """Prepare work you will do for the person on a schedule, e.g. "every day at 9, a digest of news
-        about X". Nothing is scheduled: it returns a draft_id for create_schedule. Not for the person's own
-        reminders or appointments.
+        about X". Nothing is scheduled: it returns a draft_id for create_schedule. Not for reminding the
+        person or their appointments: use add_reminder or add_event.
 
         title: a few words. prompt: what to do each time, written as the request you'll get then. time: HH:MM,
         24-hour, in the person's timezone. frequency: "once" (needs date, YYYY-MM-DD), "daily", "weekdays"
@@ -442,6 +465,106 @@ def register_tools(
         person those keep their old timezone and offer to redraft them."""
         s = await schedules()
         return await _schedule_call(s.set_timezone(caller_from(ctx), tz))
+
+    calendar_drafts: Drafts[CalendarDraft] = Drafts()
+
+    async def people_calendars() -> Calendars:
+        if calendars is None:
+            raise ToolError("calendars are not configured")
+        return Calendars(await _pool(rag, "calendars"), calendars, calendar_drafts, default_tz)
+
+    @mcp.tool
+    async def calendar_agenda(
+        ctx: Context, start: str | None = None, end: str | None = None, calendar: str | None = None
+    ) -> dict:
+        """What is on the person's calendars: events and open reminders between two dates (YYYY-MM-DD, in
+        their timezone; default today and tomorrow, at most 31 days), sorted by time, with overdue
+        reminders flagged. calendar narrows it to one calendar by name. Each item has an item_id for
+        complete_reminder and draft_calendar_change. Answer in the local times given; never add a UTC time."""
+        c = await people_calendars()
+        return await _calendar_call(c.agenda(caller_from(ctx), start, end, calendar))
+
+    @mcp.tool
+    async def add_reminder(
+        title: str, date: str, time: str, ctx: Context, notes: str | None = None, calendar: str = "mine"
+    ) -> dict:
+        """Remind the person of something at a time: a reminder in their own Nextcloud calendar that rings on
+        their phone, e.g. "remind me to call the dentist Thursday at 3". date is YYYY-MM-DD, time HH:MM
+        (24-hour), in their timezone. calendar is "mine" (their own) or a calendar's name such as "Family".
+        Not for work you do for them on a schedule: use draft_schedule. On their own calendar it is added
+        at once: tell them what and where, and offer to undo. On a family calendar it returns a draft to
+        confirm."""
+        c = await people_calendars()
+        return await _calendar_call(
+            c.add_reminder(caller_from(ctx), title, date, time, notes or "", calendar)
+        )
+
+    @mcp.tool
+    async def add_event(
+        title: str,
+        date: str,
+        ctx: Context,
+        start: str | None = None,
+        end: str | None = None,
+        location: str | None = None,
+        notes: str | None = None,
+        alarm_minutes_before: int | None = None,
+        calendar: str = "mine",
+    ) -> dict:
+        """Put an appointment or event in the person's calendar, e.g. "Lil-B's recital Friday 7 to 8pm". date
+        is YYYY-MM-DD; start and end are HH:MM on that day (end defaults to an hour later); leave both out
+        for an all-day event. alarm_minutes_before adds an alarm. calendar is "mine" or a calendar's name
+        such as "Family"; if it is unclear whether an event is theirs or the family's, ask. On their own
+        calendar it is added at once; on a family calendar it returns a draft to confirm."""
+        c = await people_calendars()
+        return await _calendar_call(
+            c.add_event(
+                caller_from(ctx),
+                title,
+                date,
+                start,
+                end,
+                location or "",
+                notes or "",
+                alarm_minutes_before,
+                calendar,
+            )
+        )
+
+    @mcp.tool
+    async def complete_reminder(item_id: str, ctx: Context) -> dict:
+        """Tick off one of the person's reminders (an item_id from calendar_agenda)."""
+        c = await people_calendars()
+        return await _calendar_call(c.complete(caller_from(ctx), item_id))
+
+    @mcp.tool
+    async def draft_calendar_change(
+        item_id: str,
+        action: Literal["move", "delete"],
+        ctx: Context,
+        date: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> dict:
+        """Prepare moving (a new date and/or start/end times) or deleting an item from calendar_agenda.
+        Nothing changes: it returns a draft_id for confirm_calendar_change; show the person the change and
+        ask. The one exception is undo: deleting something you added for them in the last 15 minutes
+        happens at once."""
+        c = await people_calendars()
+        return await _calendar_call(c.draft_change(caller_from(ctx), item_id, action, date, start, end))
+
+    @mcp.tool
+    async def confirm_calendar_change(draft_id: str, ctx: Context) -> dict:
+        """Apply a drafted calendar change, or add a drafted family event or reminder. Call it only after the
+        person saw the draft and said yes. Never say it is done unless this returned it."""
+        c = await people_calendars()
+        return await _calendar_call(c.confirm(caller_from(ctx), draft_id))
+
+    @mcp.tool
+    async def set_default_calendar(calendar: str, ctx: Context) -> dict:
+        """Save which of the person's own calendars "mine" means, when they have shared more than one."""
+        c = await people_calendars()
+        return await _calendar_call(c.set_default(caller_from(ctx), calendar))
 
     @mcp.tool
     async def claim_due_runs(limit: int = 5) -> dict:

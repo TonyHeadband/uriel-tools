@@ -102,18 +102,25 @@ async def test_nothing_matched_saves_nothing(env):
     assert out["saved"] is None and out["not_found"] == ["Roma"] and set(nc.files) == before
 
 
-async def test_signing_asks_first_and_uses_only_the_callers_own_signature(pool, env):
+async def test_signing_places_only_a_previewed_signature_and_only_the_callers_own(pool, env):
     editor, nc = env
     before = set(nc.files)
-    ask = await editor.sign(ANTHONY, "/Documents/Scuola/modulo.pdf", None, confirmed=False)
-    assert ask["confirmed"] is False and "beside 'Signature' on page 2" in ask["would_place"]
+    preview = await editor.preview_signature(ANTHONY, "/Documents/Scuola/modulo.pdf", None)
+    assert "beside 'Signature' on page 2" in preview["would_place"]
     assert set(nc.files) == before  # nothing saved before the person says yes
-    done = await editor.sign(ANTHONY, "/Documents/Scuola/modulo.pdf", None, confirmed=True)
+    done = await editor.place_signature(ANTHONY, preview["draft_id"])
     page = pymupdf.open(stream=nc.files[("uriel", done["saved"])].data, filetype="pdf")[1]
     assert len(page.get_images()) == 1
-    # Lil-B may edit the family folder, but has no Uriel folder of her own: anthony's signature is never used.
+    # A repeated yes returns the same copy instead of signing twice.
+    assert await editor.place_signature(ANTHONY, preview["draft_id"]) == done
+    with pytest.raises(Denied, match="no such preview"):
+        await editor.place_signature(ANTHONY, "never-previewed")
+    # Lil-B may edit the family folder, but has no Uriel folder of her own: anthony's signature is never used,
+    # and she hears so before any yes.
     with pytest.raises(Denied, match="no signature image"):
-        await editor.sign(LIL_B, "/Famiglia/delega.pdf", None, confirmed=True)
+        await editor.preview_signature(LIL_B, "/Famiglia/delega.pdf", None)
+    with pytest.raises(Denied, match="no such preview"):
+        await editor.place_signature(LIL_B, preview["draft_id"])
 
 
 async def test_confirm_edit_marks_only_drafts(pool, env):

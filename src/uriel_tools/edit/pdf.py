@@ -170,7 +170,7 @@ def fill(data: bytes, values: dict[str, str]) -> Result:
             continue
         if _is_signature(w):
             remaining.pop(w.field_name)
-            result.warnings.append(f"{w.field_name} is a signature box: use sign_document, not text")
+            result.warnings.append(f"{w.field_name} is a signature box: use preview_signature, not text")
             continue
         value = str(remaining.pop(w.field_name))
         if w.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX:

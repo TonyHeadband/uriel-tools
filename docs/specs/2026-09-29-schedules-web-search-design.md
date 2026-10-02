@@ -12,7 +12,8 @@ Uriel's work where they already look: a calendar and a task list in Nextcloud.
 
 ## Decisions
 - **Uriel's work, not the person's reminders.** Schedules are tasks Uriel runs. "Remind me…" and appointments go to
-  the person's Google Calendar in a later track, and are not schedules.
+  the person's own Nextcloud calendar ([personal calendars](2026-09-29-personal-calendars-design.md), which replaced
+  the Google track), and are not schedules.
 - **The DB is the source of truth; Nextcloud is a mirror.** Every schedule shows up as a recurring event, and every
   run as a completed task. Deleting the event in Nextcloud cancels the schedule. Edits there are ignored and
   overwritten: changes go through chat, where Uriel confirms them.

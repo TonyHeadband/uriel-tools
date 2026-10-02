@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastmcp import Client
 
@@ -220,9 +222,12 @@ async def call(pool, tool, args, meta):
 async def test_memory_tools_through_the_server(pool):
     saved = await call(pool, "remember", {"file": "user", "section": "Music", "note": "Jazz"}, TONY_META)
     assert saved.structured_content["status"] == "saved"
-    ctx = await call(pool, "memory_context", {}, TONY_META)
-    assert ctx.structured_content == {"user": "# About anthony-headband\n## Music\n- Jazz", "soul": ""}
-    assert (await call(pool, "memory_context", {}, LIL_B_META)).structured_content == {"user": "", "soul": ""}
+    ctx = (await call(pool, "memory_context", {}, TONY_META)).structured_content
+    now_local = ctx.pop("now_local")
+    assert ctx == {"user": "# About anthony-headband\n## Music\n- Jazz", "soul": "", "tz": "America/Toronto"}
+    assert re.fullmatch(r"\w{3} \d{1,2} \w{3} \d{4}, \d{1,2}:\d{2}", now_local)  # the gateway's "it is now"
+    lil_b = (await call(pool, "memory_context", {}, LIL_B_META)).structured_content
+    assert (lil_b["user"], lil_b["soul"]) == ("", "")
     q = await call(pool, "next_question", {"file": "user"}, TONY_META)
     assert q.structured_content["section"] == "Name"
     shown = await call(pool, "show_memory", {"file": "soul"}, TONY_META)

@@ -66,7 +66,7 @@ async def test_list_is_filtered_by_meta_groups():
 async def test_list_carries_each_tools_category():
     res = await call("tools/list", {"_meta": {"user": "kid", "groups": ["family"], "request_id": "r1"}})
     assert [t["_meta"]["uriel"] for t in res["tools"]] == [
-        {"category": "documents", "hidden": False, "unattended": False}
+        {"category": "documents", "hidden": False, "unattended": False, "companion_action": None}
     ]
 
 
@@ -87,7 +87,12 @@ async def test_list_carries_hidden_and_unattended_next_to_the_category():
     policy = ToolPolicy.model_validate(
         {
             "tools": {
-                "search_documents": {"groups": ["family"], "category": "documents", "unattended": True},
+                "search_documents": {
+                    "groups": ["family"],
+                    "category": "documents",
+                    "unattended": True,
+                    "companion_action": "lookup",
+                },
                 "memory_context": {"groups": ["family"], "category": "memory", "hidden": True},
             }
         }
@@ -95,8 +100,18 @@ async def test_list_carries_hidden_and_unattended_next_to_the_category():
     res = await call("tools/list", {"_meta": KID}, policy)
     uriel = {t["name"]: t["_meta"]["uriel"] for t in res["tools"]}
     assert uriel == {
-        "search_documents": {"category": "documents", "hidden": False, "unattended": True},
-        "memory_context": {"category": "memory", "hidden": True, "unattended": False},
+        "search_documents": {
+            "category": "documents",
+            "hidden": False,
+            "unattended": True,
+            "companion_action": "lookup",
+        },
+        "memory_context": {
+            "category": "memory",
+            "hidden": True,
+            "unattended": False,
+            "companion_action": None,
+        },
     }
 
 

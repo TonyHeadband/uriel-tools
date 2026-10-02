@@ -1,29 +1,37 @@
 tools:
-  homelab_status: { groups: [admins], category: homelab }
-  search_documents: { groups: [family], category: documents, unattended: true }
-  door_camera_last_event: { groups: [family], category: camera }
-  ocr_now: { groups: [family], category: documents }
-  inspect_document: { groups: [family], category: documents }
-  fill_form: { groups: [family], category: documents }
-  edit_text: { groups: [family], category: documents }
-  sign_document: { groups: [family], category: documents }
-  confirm_edit: { groups: [family], category: documents }
-  remember: { groups: [family], category: memory }
-  forget: { groups: [family], category: memory }
-  show_memory: { groups: [family], category: memory, unattended: true }
-  next_question: { groups: [family], category: memory }
-  answer_question: { groups: [family], category: memory }
-  set_style: { groups: [family], category: memory }
+  homelab_status: { groups: [admins], category: homelab, companion_action: lookup }
+  search_documents: { groups: [family], category: documents, unattended: true, companion_action: lookup }
+  door_camera_last_event: { groups: [family], category: camera, companion_action: lookup }
+  ocr_now: { groups: [family], category: documents, companion_action: change }
+  inspect_document: { groups: [family], category: documents, companion_action: lookup }
+  fill_form: { groups: [family], category: documents, companion_action: change }
+  edit_text: { groups: [family], category: documents, companion_action: change }
+  preview_signature: { groups: [family], category: documents, companion_action: draft }
+  place_signature: { groups: [family], category: documents, companion_action: confirm }
+  confirm_edit: { groups: [family], category: documents, companion_action: confirm }
+  remember: { groups: [family], category: memory, companion_action: change }
+  forget: { groups: [family], category: memory, companion_action: change }
+  show_memory: { groups: [family], category: memory, unattended: true, companion_action: lookup }
+  next_question: { groups: [family], category: memory, companion_action: ask }
+  answer_question: { groups: [family], category: memory, companion_action: change }
+  set_style: { groups: [family], category: memory, companion_action: change }
   memory_context: { groups: [family], category: memory, hidden: true }
-  draft_issue: { groups: [family], category: reporting }
-  file_issue: { groups: [family], category: reporting }
-  draft_schedule: { groups: [family], category: schedules }
-  create_schedule: { groups: [family], category: schedules }
-  list_schedules: { groups: [family], category: schedules, unattended: true }
-  list_runs: { groups: [family], category: schedules }
-  cancel_schedule: { groups: [family], category: schedules }
-  set_timezone: { groups: [family], category: schedules }
+  draft_issue: { groups: [family], category: reporting, companion_action: draft }
+  file_issue: { groups: [family], category: reporting, companion_action: confirm }
+  draft_schedule: { groups: [family], category: schedules, companion_action: draft }
+  create_schedule: { groups: [family], category: schedules, companion_action: confirm }
+  list_schedules: { groups: [family], category: schedules, unattended: true, companion_action: lookup }
+  list_runs: { groups: [family], category: schedules, companion_action: lookup }
+  cancel_schedule: { groups: [family], category: schedules, companion_action: change }
+  set_timezone: { groups: [family], category: schedules, companion_action: change }
+  calendar_agenda: { groups: [family], category: calendar, unattended: true, companion_action: lookup }
+  add_reminder: { groups: [family], category: calendar, companion_action: change }
+  add_event: { groups: [family], category: calendar, companion_action: change }
+  complete_reminder: { groups: [family], category: calendar, companion_action: change }
+  draft_calendar_change: { groups: [family], category: calendar, companion_action: draft }
+  confirm_calendar_change: { groups: [family], category: calendar, companion_action: confirm }
+  set_default_calendar: { groups: [family], category: calendar, companion_action: change }
   # The gateway's runner only: it sends uriel-internal on its own calls and strips it from every person.
   claim_due_runs: { groups: [uriel-internal], category: schedules, hidden: true }
   finish_run: { groups: [uriel-internal], category: schedules, hidden: true }
-  web_search: { groups: [family], category: web, unattended: true }
+  web_search: { groups: [family], category: web, unattended: true, companion_action: lookup }

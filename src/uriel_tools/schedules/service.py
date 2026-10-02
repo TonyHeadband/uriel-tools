@@ -139,7 +139,8 @@ class Schedules:
             "title": title,
             "prompt": prompt,
             "when": rules.describe(rule.rrule, rule.dtstart, rule.tz),
-            "next_runs": [_stamp("at", at_, rule.tz) for at_ in next_runs],
+            # Only for the person to read: shown a UTC stamp too, the model took 20:00 tonight for tomorrow.
+            "next_runs": [rules.local(at_, rule.tz) for at_ in next_runs],
             "tools": wanted,
             "tz": rule.tz,
             "next": "Nothing is scheduled yet. Show the person what will run and when, and call "
@@ -158,7 +159,10 @@ class Schedules:
         d = stored.draft
         first = next(rules.occurrences(d.rule.rrule, d.rule.dtstart, d.rule.tz, self.now()), None)
         if first is None:
-            raise Refused("that time has already passed: call draft_schedule again with a later time")
+            raise Refused(
+                f"that time has already passed (it is now {rules.now_in(self.now(), d.rule.tz)}): "
+                "call draft_schedule again with a later time"
+            )
         row = await store.insert(
             self.pool,
             owner=owner,
@@ -205,6 +209,11 @@ class Schedules:
         if row is None:
             raise Refused(f"there's no schedule {schedule_id} among yours: call list_schedules")
         return {"schedule_id": row["id"], "title": row["title"], "status": row["status"]}
+
+    async def local_now(self, caller: Caller) -> dict:
+        """The person's timezone and the time there now, so the model can turn "tomorrow at 9" into a date."""
+        tz = await store.get_tz(self.pool, _owner(caller), self.default_tz)
+        return {"tz": tz, "now_local": rules.local(self.now(), tz)}
 
     async def set_timezone(self, caller: Caller, tz: str) -> dict:
         owner = _owner(caller)

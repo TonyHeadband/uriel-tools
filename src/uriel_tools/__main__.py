@@ -53,9 +53,14 @@ def main() -> None:
     else:
         log.warning("URIEL_SEARXNG_URL is not set; web search is disabled")
     nextcloud = bool(rag_settings.nc_url and rag_settings.nc_app_password)
-    if rag is not None and sched.mirror_on(nextcloud):
+    dav = None
+    if nextcloud:
         s = rag_settings
-        mirror = Mirror(rag.ready, CalDav(s.nc_url, s.nc_user, s.nc_app_password))
+        dav = CalDav(s.nc_url, s.nc_user, s.nc_app_password)
+    else:
+        log.warning("URIEL_NC_URL / URIEL_NC_APP_PASSWORD not set; people's calendars are disabled")
+    if rag is not None and sched.mirror_on(nextcloud):
+        mirror = Mirror(rag.ready, dav)
         background.append(
             partial(mirror.run, push_s=sched.mirror_push_seconds, pull_s=sched.mirror_pull_seconds)
         )
@@ -70,6 +75,7 @@ def main() -> None:
         web=web,
         default_tz=sched.default_tz,
         background=background,
+        calendars=dav,
     )
     uvicorn.run(
         app,

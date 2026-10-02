@@ -31,12 +31,8 @@ async def test_a_draft_shows_what_will_run_and_schedules_nothing(svc, pool):
     draft = await svc.draft(TONY, **NEWS)
     assert draft["when"] == "every day at 9:00 (Toronto time)"
     assert draft["tools"] == ["web_search"] and draft["tz"] == "America/Toronto"
-    assert [r["at"] for r in draft["next_runs"]] == [
-        "2026-03-07T14:00:00Z",
-        "2026-03-08T13:00:00Z",
-        "2026-03-09T13:00:00Z",
-    ]
-    assert draft["next_runs"][0]["at_local"] == "Sat 7 Mar 2026, 9:00"
+    # Local time only: shown a UTC stamp too, qwen3:8b told the person 20:00 tonight ran "tomorrow".
+    assert draft["next_runs"] == ["Sat 7 Mar 2026, 9:00", "Sun 8 Mar 2026, 9:00", "Mon 9 Mar 2026, 9:00"]
     assert "only after they say yes" in draft["next"]
     assert (await svc.list(TONY))["schedules"] == []
 

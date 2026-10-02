@@ -49,7 +49,8 @@ and prints the digest. Then bump the pin in uriel-agent's `deploy/compose.yaml` 
 | `inspect_document`       | family | a document's form fields, signature fields, and whether edits can be saved |
 | `fill_form`              | family | fills a PDF form (fields, or beside labels on flat forms) into an `edit_` copy |
 | `edit_text`              | family | text changes and notes in Word/LibreOffice/text/PDF, saved as an `edit_` copy |
-| `sign_document`          | family | places the caller's own signature image after confirmation |
+| `preview_signature`      | family | says where the caller's own signature image would go; saves nothing |
+| `place_signature`        | family | places exactly that previewed signature, after the person's yes |
 | `confirm_edit`           | family | marks an `edit_` copy as approved |
 | `draft_schedule`, `create_schedule` | family | drafts recurring work for the caller, then creates it after a yes |
 | `list_schedules`, `list_runs`, `cancel_schedule`, `set_timezone` | family | the caller's schedules, their runs, stopping one, their timezone |

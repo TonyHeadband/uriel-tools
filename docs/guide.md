@@ -1,7 +1,7 @@
 # Using Uriel's tools
 
 What the Uriel family assistant can look up for you, and how to give it your documents. This page covers
-uriel-tools **0.8**.
+uriel-tools **0.9**.
 
 ## What Uriel can do today
 
@@ -9,10 +9,11 @@ uriel-tools **0.8**.
 |---|---|---|---|
 | `search_documents` | `family` | Searches the household documents you may see and answers with the title, page and a link to each file | live |
 | `ocr_now` | `family` | Reads one of your scans right away instead of overnight | live |
-| `inspect_document`, `fill_form`, `edit_text`, `sign_document`, `confirm_edit` | `family` | Prepare an edited copy of a document for you to review (see "Having Uriel edit a document") | live |
+| `inspect_document`, `fill_form`, `edit_text`, `preview_signature`, `place_signature`, `confirm_edit` | `family` | Prepare an edited copy of a document for you to review (see "Having Uriel edit a document") | live |
 | `remember`, `forget`, `show_memory`, `next_question`, `answer_question`, `set_style` | `family` | Remember things about you and how you like it to talk (see "What Uriel remembers") | live |
 | `draft_issue`, `file_issue` | `family` | Sends Anthony a problem report or a feature idea (see "Telling Anthony something is wrong") | live |
 | `draft_schedule`, `create_schedule`, `list_schedules`, `list_runs`, `cancel_schedule`, `set_timezone` | `family` | Does recurring work for you, like a morning news digest (see "Uriel working on a schedule") | live |
+| `add_reminder`, `add_event`, `calendar_agenda`, `complete_reminder`, `draft_calendar_change`, `confirm_calendar_change`, `set_default_calendar` | `family` | Reminders and events in your Nextcloud calendar (see "Reminders and your calendar") | live |
 | `web_search` | `family` | Searches the web and cites the pages it used | live |
 | `homelab_status` | `admins` | Summarises the cluster, pods and GPU | placeholder data |
 | `door_camera_last_event` | `family` | Last person or vehicle seen at the front door | placeholder data |
@@ -145,12 +146,36 @@ next three times), and schedules nothing until you say yes.
 - **Timezone:** times are in your timezone, Toronto time unless you say otherwise ("I'm in Rome now"). Existing
   schedules keep the timezone they were made in; Uriel offers to redo them.
 - **What a scheduled run can do:** only things that need nobody's confirmation: search the web, search your
-  documents, read your USER.md, list your schedules. It never files reports, edits or signs anything on its own.
+  documents, read your USER.md, list your schedules, read your calendar agenda. It never files reports, edits
+  or signs anything on its own.
 - If Uriel was down when something was due, a run missed by more than a short while (10 minutes for a one-time
   task, up to 2 hours for a daily one) is skipped rather than sent late. It still shows in **Uriel · done**, as
   "<title>: skipped".
 
-These are Uriel's tasks. Your own reminders and appointments are a separate feature, still to come.
+These are Uriel's tasks. For your own reminders and appointments, see "Reminders and your calendar".
+
+## Reminders and your calendar
+Uriel can put reminders and appointments in your Nextcloud calendar, so they ring on your phone.
+
+**Share a calendar with Uriel first.** In the Nextcloud Calendar app, click the **⋯** next to your calendar,
+choose **Share**, type **uriel** and tick **can edit**. Uriel sees only the calendars you share, and unsharing
+cuts it off at once. If you share more than one, say which one is your everyday calendar ("use Personal for my
+reminders").
+
+**The Family calendar.** Uriel keeps a Family calendar of its own, shared with the family group: everyone in the
+family can see it through Uriel and in their Nextcloud Calendar. Uriel asks you before adding anything there.
+
+Things to say:
+- "Remind me to call the dentist Thursday at 3."
+- "Lil-B's recital is Friday from 7 to 8" (Uriel asks whether it belongs on your calendar or the family's).
+- "What's on tomorrow?" or "what's on this week?", which also lists reminders you haven't done.
+- "Move the dentist to 4."
+- "Tick off the dentist reminder."
+- "No, undo that."
+
+Uriel adds things to your own calendar straight away and tells you what and where. Moving or deleting something,
+or adding to the Family calendar, is shown to you first and only happens after you say yes. The exception is
+"undo that" for something Uriel added in the last 15 minutes: that happens at once. Times are in your timezone.
 
 ## Searching the web
 Ask about news or anything recent, e.g. "what happened with the EU AI Act this week?". Uriel searches through the

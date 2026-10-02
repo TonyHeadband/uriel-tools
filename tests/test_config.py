@@ -38,6 +38,7 @@ def test_a_tool_without_a_category_is_refused():
 def test_every_shipped_tool_has_a_category():
     policy = load_yaml(ToolPolicy, McpSettings(api_keys="k").tools_file)
     assert {r.category for r in policy.tools.values()} == {
+        "calendar",
         "homelab",
         "camera",
         "documents",
@@ -48,11 +49,48 @@ def test_every_shipped_tool_has_a_category():
     }
 
 
+def test_an_unknown_companion_action_is_refused():
+    with pytest.raises(ValidationError, match="companion_action"):
+        ToolPolicy.model_validate(
+            {"tools": {"x": {"groups": ["family"], "category": "web", "companion_action": "dance"}}}
+        )
+
+
+def test_every_shipped_tool_the_model_sees_has_a_companion_action():
+    policy = load_yaml(ToolPolicy, McpSettings(api_keys="k").tools_file)
+    assert {n for n, r in policy.tools.items() if r.companion_action is None} == {
+        n for n, r in policy.tools.items() if r.hidden
+    }
+    by_action = {}
+    for n, r in policy.tools.items():
+        by_action.setdefault(r.companion_action, set()).add(n)
+    assert by_action["draft"] == {
+        "draft_issue",
+        "draft_schedule",
+        "draft_calendar_change",
+        "preview_signature",
+    }
+    assert by_action["confirm"] == {
+        "file_issue",
+        "create_schedule",
+        "confirm_calendar_change",
+        "place_signature",
+        "confirm_edit",
+    }
+    assert by_action["ask"] == {"next_question"}
+
+
 async def test_the_shipped_tool_policy_covers_every_tool():
     policy = load_yaml(ToolPolicy, McpSettings(api_keys="k").tools_file)
     registered = {t.name for t in await build_mcp(policy).list_tools(run_middleware=False)}
     assert set(policy.tools) == registered
-    assert policy.unattended_tools() == {"web_search", "search_documents", "show_memory", "list_schedules"}
+    assert policy.unattended_tools() == {
+        "web_search",
+        "search_documents",
+        "show_memory",
+        "list_schedules",
+        "calendar_agenda",
+    }
     assert {n for n, r in policy.tools.items() if r.hidden} == {
         "memory_context",
         "claim_due_runs",

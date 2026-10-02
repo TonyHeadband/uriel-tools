@@ -64,7 +64,7 @@ async def test_make_share_sync_a_deletion_and_make_again(dav):
             tools=[],
             rrule="FREQ=DAILY",
             dtstart=datetime(2026, 10, 1, 9, 0),
-            tz="America/Toronto",  # no VTIMEZONE: Nextcloud must resolve the IANA name itself
+            tz="America/Toronto",  # with the VTIMEZONE the mirror now writes
             now=now,
         )
         await dav.put(href, uid, event)

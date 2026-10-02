@@ -33,6 +33,8 @@ DAY_NAMES = {
 }
 WEEKDAYS = "MO,TU,WE,TH,FR"
 _CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
+_WHEN = re.compile(r"^(\d{4}-\d{2}-\d{2})T(\d{1,2}:\d{2})(?::[0-5]\d)?$")
+DATE_FORMAT = "date must be YYYY-MM-DD, e.g. 2026-10-03"
 
 
 class RuleError(ValueError):
@@ -82,6 +84,29 @@ def localise(naive: datetime, tz: str) -> datetime:
     raise RuleError(f"{naive:%Y-%m-%d %H:%M} doesn't exist in {tz}")
 
 
+def parse_clock(at: str) -> time:
+    match = _CLOCK.match(at.strip())
+    if match is None:
+        raise RuleError("time must be HH:MM on a 24-hour clock, e.g. 09:00 or 18:30")
+    return time(int(match[1]), int(match[2]))
+
+
+def parse_date(on: str) -> date:
+    try:
+        return date.fromisoformat(on.strip())
+    except ValueError as e:
+        raise RuleError(DATE_FORMAT) from e
+
+
+def parse_when(value: str) -> tuple[date | None, time]:
+    """HH:MM, or YYYY-MM-DDTHH:MM[:SS] with its date: models often send a time as a full ISO datetime.
+    Seconds are dropped."""
+    match = _WHEN.match(value.strip())
+    if match is None:
+        return None, parse_clock(value)
+    return parse_date(match[1]), parse_clock(match[2])
+
+
 def occurrences(rrule: str, dtstart: datetime, tz: str, after: datetime) -> Iterator[datetime]:
     """Occurrences strictly after the UTC instant `after`, in order, as UTC instants."""
     z = zone(tz)
@@ -118,19 +143,15 @@ def build(
 ) -> Rule:
     """The rule for the structured fields, starting at its first occurrence after `now` (UTC)."""
     tz = zone_name(tz)
-    match = _CLOCK.match(at.strip())
-    if match is None:
-        raise RuleError("time must be HH:MM on a 24-hour clock, e.g. 09:00 or 18:30")
-    clock = time(int(match[1]), int(match[2]))
+    clock = parse_clock(at)
     if frequency == "once":
         if not on:
             raise RuleError("a one-off schedule needs a date (YYYY-MM-DD)")
-        try:
-            start = datetime.combine(date.fromisoformat(on.strip()), clock)
-        except ValueError as e:
-            raise RuleError("date must be YYYY-MM-DD, e.g. 2026-10-03") from e
+        start = datetime.combine(parse_date(on), clock)
         if localise(start, tz) <= now:
-            raise RuleError("that time has already passed: pick a later date or time")
+            raise RuleError(
+                f"that time has already passed (it is now {now_in(now, tz)}): pick a later date or time"
+            )
         return Rule(ONCE, start, tz)
     if frequency == "daily":
         rrule = "FREQ=DAILY"
@@ -188,6 +209,11 @@ def describe(rrule: str, dtstart: datetime, tz: str) -> str:
         if day > 28:
             text += ", skipping months without that day"
     return f"{text} ({place(tz)} time)"
+
+
+def now_in(now: datetime, tz: str) -> str:
+    """The time in `tz`, for a model that may not know today's date: "Fri 6 Mar 2026, 10:00 Toronto time"."""
+    return f"{local(now, tz)} {place(tz)} time"
 
 
 def iso(at: datetime) -> str:
